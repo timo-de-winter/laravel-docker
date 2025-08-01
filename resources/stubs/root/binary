@@ -1,0 +1,337 @@
+#!/usr/bin/env bash
+
+UNAMEOUT="$(uname -s)"
+
+# Verify operating system is supported...
+case "${UNAMEOUT}" in
+    Linux*)             MACHINE=linux;;
+    Darwin*)            MACHINE=mac;;
+    *)                  MACHINE="UNKNOWN"
+esac
+
+if [ "$MACHINE" == "UNKNOWN" ]; then
+    echo "Unsupported operating system [$(uname -s)]. timodewinter-laravel-docker supports macOS, Linux, and Windows (WSL2)." >&2
+
+    exit 1
+fi
+
+# Determine if stdout is a terminal...
+if test -t 1; then
+    # Determine if colors are supported...
+    ncolors=$(tput colors)
+
+    if test -n "$ncolors" && test "$ncolors" -ge 8; then
+        BOLD="$(tput bold)"
+        YELLOW="$(tput setaf 3)"
+        GREEN="$(tput setaf 2)"
+        NC="$(tput sgr0)"
+    fi
+fi
+
+# Source the ".env" file so Laravel's environment variables are available...
+# shellcheck source=/dev/null
+if [ -n "$APP_ENV" ] && [ -f ./.env."$APP_ENV" ]; then
+  source ./.env."$APP_ENV";
+elif [ -f ./.env ]; then
+  source ./.env;
+fi
+
+# Define environment variables...
+export APP_PORT=${APP_PORT:-80}
+export APP_SERVICE=${APP_SERVICE:-"application"}
+export DB_PORT=${DB_PORT:-3306}
+export WWWUSER=${WWWUSER:-$UID}
+export WWWGROUP=${WWWGROUP:-$(id -g)}
+
+export TDW_LARAVEL_DOCKER_SHARE_DASHBOARD=${TDW_LARAVEL_DOCKER_SHARE_DASHBOARD:-4040}
+export TDW_LARAVEL_DOCKER_SHARE_SERVER_HOST=${TDW_LARAVEL_DOCKER_SHARE_SERVER_HOST:-"timodewinter-laravel-docker.site"}
+export TDW_LARAVEL_DOCKER_SHARE_SERVER_PORT=${TDW_LARAVEL_DOCKER_SHARE_SERVER_PORT:-8080}
+export TDW_LARAVEL_DOCKER_SHARE_SUBDOMAIN=${TDW_LARAVEL_DOCKER_SHARE_SUBDOMAIN:-""}
+export TDW_LARAVEL_DOCKER_SHARE_DOMAIN=${TDW_LARAVEL_DOCKER_SHARE_DOMAIN:-"$TDW_LARAVEL_DOCKER_SHARE_SERVER_HOST"}
+export TDW_LARAVEL_DOCKER_SHARE_SERVER=${TDW_LARAVEL_DOCKER_SHARE_SERVER:-""}
+
+# Function that outputs timodewinter-laravel-docker is not running...
+function timodewinter-laravel-docker_is_not_running {
+    echo "${BOLD}timodewinter-laravel-docker is not running.${NC}" >&2
+    echo "" >&2
+    echo "${BOLD}You may timodewinter-laravel-docker using the following commands:${NC} 'timodewinter-laravel-docker up' or 'timodewinter-laravel-docker up -d'" >&2
+
+    exit 1
+}
+
+# Define Docker Compose command prefix...
+if docker compose &> /dev/null; then
+    DOCKER_COMPOSE=(docker compose -f compose.dev.yml)
+else
+    DOCKER_COMPOSE=(docker-compose -f compose.dev.yml)
+fi
+
+# Ensure that Docker is running...
+if ! docker info > /dev/null 2>&1; then
+    echo "${BOLD}Docker is not running.${NC}" >&2
+
+    exit 1
+fi
+
+# Get the status of the app service *ONCE*
+APP_SERVICE_STATUS=$("${DOCKER_COMPOSE[@]}" ps "$APP_SERVICE" 2>&1)
+
+# Determine if timodewinter-laravel-docker is currently up and needs shutdown...
+if echo "$APP_SERVICE_STATUS" | grep 'Exit\|exited' > /dev/null; then
+    echo "${BOLD}Shutting down old timodewinter-laravel-docker processes...${NC}" >&2
+    "${DOCKER_COMPOSE[@]}" down > /dev/null 2>&1  # Shutdown only if needed
+    EXEC="no"
+elif [ -z "$(echo "$APP_SERVICE_STATUS" | "${DOCKER_COMPOSE[@]}" ps -q)" ]; then
+  # Check if container is present at all, by filtering ps -q by APP_SERVICE_STATUS
+    EXEC="no"
+else
+    EXEC="yes" # Container is running
+fi
+
+ARGS=()
+
+# Proxy PHP commands to the "php" binary on the application container...
+if [ "$1" == "php" ]; then
+    shift 1
+
+    if [ "$EXEC" == "yes" ]; then
+        ARGS+=(exec -u "$WWWUSER")
+        [ ! -t 0 ] && ARGS+=(-T)
+        ARGS+=("$APP_SERVICE" "php")
+    else
+        timodewinter-laravel-docker_is_not_running
+    fi
+
+# Proxy vendor binary commands on the application container...
+elif [ "$1" == "bin" ]; then
+    shift 1
+
+    if [ "$EXEC" == "yes" ]; then
+        CMD=$1
+        shift 1
+        ARGS+=(exec -u "$WWWUSER")
+        [ ! -t 0 ] && ARGS+=(-T)
+        ARGS+=("$APP_SERVICE" ./vendor/bin/"$CMD")
+    else
+        timodewinter-laravel-docker_is_not_running
+    fi
+
+# Proxy docker-compose commands to the docker-compose binary on the application container...
+elif [ "$1" == "docker-compose" ]; then
+    shift 1
+
+    if [ "$EXEC" == "yes" ]; then
+        ARGS+=(exec -u "$WWWUSER")
+        [ ! -t 0 ] && ARGS+=(-T)
+        ARGS+=("$APP_SERVICE" "${DOCKER_COMPOSE[@]}")
+    else
+        timodewinter-laravel-docker_is_not_running
+    fi
+
+# Proxy Composer commands to the "composer" binary on the application container...
+elif [ "$1" == "composer" ]; then
+    shift 1
+
+    if [ "$EXEC" == "yes" ]; then
+        ARGS+=(exec -u "$WWWUSER")
+        [ ! -t 0 ] && ARGS+=(-T)
+        ARGS+=("$APP_SERVICE" "composer")
+    else
+        timodewinter-laravel-docker_is_not_running
+    fi
+
+# Proxy Artisan commands to the "artisan" binary on the application container...
+elif [ "$1" == "artisan" ] || [ "$1" == "art" ] || [ "$1" == "a" ]; then
+    shift 1
+
+    if [ "$EXEC" == "yes" ]; then
+        ARGS+=(exec -u "$WWWUSER")
+        [ ! -t 0 ] && ARGS+=(-T)
+        ARGS+=("$APP_SERVICE" php artisan)
+    else
+        timodewinter-laravel-docker_is_not_running
+    fi
+
+# Proxy the "debug" command to the "php artisan" binary on the application container with xdebug enabled...
+elif [ "$1" == "debug" ]; then
+    shift 1
+
+    if [ "$EXEC" == "yes" ]; then
+        ARGS+=(exec -u "$WWWUSER" -e XDEBUG_TRIGGER=1)
+        [ ! -t 0 ] && ARGS+=(-T)
+        ARGS+=("$APP_SERVICE" php artisan)
+    else
+        timodewinter-laravel-docker_is_not_running
+    fi
+
+# Proxy the "test" command to the "php artisan test" Artisan command...
+elif [ "$1" == "test" ]; then
+    shift 1
+
+    if [ "$EXEC" == "yes" ]; then
+        ARGS+=(exec -u "$WWWUSER")
+        [ ! -t 0 ] && ARGS+=(-T)
+        ARGS+=("$APP_SERVICE" php artisan test)
+    else
+        timodewinter-laravel-docker_is_not_running
+    fi
+
+# Proxy the "phpunit" command to "php vendor/bin/phpunit"...
+elif [ "$1" == "phpunit" ]; then
+    shift 1
+
+    if [ "$EXEC" == "yes" ]; then
+        ARGS+=(exec -u "$WWWUSER")
+        [ ! -t 0 ] && ARGS+=(-T)
+        ARGS+=("$APP_SERVICE" php vendor/bin/phpunit)
+    else
+        timodewinter-laravel-docker_is_not_running
+    fi
+
+# Proxy the "pest" command to "php vendor/bin/pest"...
+elif [ "$1" == "pest" ]; then
+    shift 1
+
+    if [ "$EXEC" == "yes" ]; then
+        ARGS+=(exec -u "$WWWUSER")
+        [ ! -t 0 ] && ARGS+=(-T)
+        ARGS+=("$APP_SERVICE" php vendor/bin/pest)
+    else
+        timodewinter-laravel-docker_is_not_running
+    fi
+
+# Proxy the "pint" command to "php vendor/bin/pint"...
+elif [ "$1" == "pint" ]; then
+    shift 1
+
+    if [ "$EXEC" == "yes" ]; then
+        ARGS+=(exec -u "$WWWUSER")
+        [ ! -t 0 ] && ARGS+=(-T)
+        ARGS+=("$APP_SERVICE" php vendor/bin/pint)
+    else
+        timodewinter-laravel-docker_is_not_running
+    fi
+
+# Initiate a Laravel Tinker session within the application container...
+elif [ "$1" == "tinker" ]; then
+    shift 1
+
+    if [ "$EXEC" == "yes" ]; then
+        ARGS+=(exec -u "$WWWUSER")
+        [ ! -t 0 ] && ARGS+=(-T)
+        ARGS+=("$APP_SERVICE" php artisan tinker)
+    else
+        timodewinter-laravel-docker_is_not_running
+    fi
+
+# Proxy Node commands to the "node" binary on the application container...
+elif [ "$1" == "node" ]; then
+    shift 1
+
+    if [ "$EXEC" == "yes" ]; then
+        ARGS+=(exec -u "$WWWUSER")
+        [ ! -t 0 ] && ARGS+=(-T)
+        ARGS+=("$APP_SERVICE" node)
+    else
+        timodewinter-laravel-docker_is_not_running
+    fi
+
+# Proxy NPM commands to the "npm" binary on the application container...
+elif [ "$1" == "npm" ]; then
+    shift 1
+
+    if [ "$EXEC" == "yes" ]; then
+        ARGS+=(exec -u "$WWWUSER")
+        [ ! -t 0 ] && ARGS+=(-T)
+        ARGS+=("$APP_SERVICE" npm)
+    else
+        timodewinter-laravel-docker_is_not_running
+    fi
+
+# Initiate a MySQL CLI terminal session within the "mariadb" container...
+elif [ "$1" == "mariadb" ]; then
+    shift 1
+
+    if [ "$EXEC" == "yes" ]; then
+        ARGS+=(exec -u "$WWWUSER")
+        [ ! -t 0 ] && ARGS+=(-T)
+        ARGS+=(mariadb bash -c)
+        ARGS+=("MYSQL_PWD=\${MYSQL_PASSWORD} mariadb -u \${MYSQL_USER} \${MYSQL_DATABASE}")
+    else
+        timodewinter-laravel-docker_is_not_running
+    fi
+
+# Initiate a Bash shell within the application container...
+elif [ "$1" == "shell" ] || [ "$1" == "bash" ]; then
+    shift 1
+
+    if [ "$EXEC" == "yes" ]; then
+        ARGS+=(exec -u "$WWWUSER")
+        [ ! -t 0 ] && ARGS+=(-T)
+        ARGS+=("$APP_SERVICE" bash)
+    else
+        timodewinter-laravel-docker_is_not_running
+    fi
+
+# Initiate a Redis CLI terminal session within the "redis" container...
+elif [ "$1" == "redis" ]; then
+    shift 1
+
+    if [ "$EXEC" == "yes" ]; then
+        ARGS+=(exec -u "$WWWUSER")
+        [ ! -t 0 ] && ARGS+=(-T)
+        ARGS+=(redis redis-cli)
+    else
+        timodewinter-laravel-docker_is_not_running
+    fi
+
+# Share the site...
+elif [ "$1" == "share" ]; then
+    shift 1
+
+    if [ "$EXEC" == "yes" ]; then
+        docker run --init --rm --add-host=host.docker.internal:host-gateway -p "$TDW_LARAVEL_DOCKER_SHARE_DASHBOARD":4040 -t beyondcodegmbh/expose-server:latest share http://host.docker.internal:"$APP_PORT" \
+            --server-host="$TDW_LARAVEL_DOCKER_SHARE_SERVER_HOST" \
+            --server-port="$TDW_LARAVEL_DOCKER_SHARE_SERVER_PORT" \
+            --auth="$TDW_LARAVEL_DOCKER_SHARE_TOKEN" \
+            --server="$TDW_LARAVEL_DOCKER_SHARE_SERVER" \
+            --subdomain="$TDW_LARAVEL_DOCKER_SHARE_SUBDOMAIN" \
+            --domain="$TDW_LARAVEL_DOCKER_SHARE_DOMAIN" \
+            "$@"
+
+        exit
+    else
+        timodewinter-laravel-docker_is_not_running
+    fi
+
+# Open the site...
+elif [ "$1" == "open" ]; then
+    shift 1
+
+    if command -v open &>/dev/null; then
+        OPEN="open"
+    elif command -v xdg-open &>/dev/null; then
+        OPEN="xdg-open"
+    else
+        echo "Neither open nor xdg-open is available. Exiting."
+        exit 1
+    fi
+
+    if [ "$EXEC" == "yes" ]; then
+
+        if [[ -n "$APP_PORT" && "$APP_PORT" != "80" ]]; then
+            FULL_URL="${APP_URL}:${APP_PORT}"
+        else
+            FULL_URL="$APP_URL"
+        fi
+
+        $OPEN "$FULL_URL"
+
+        exit
+    else
+        timodewinter-laravel-docker_is_not_running
+    fi
+fi
+
+# Run Docker Compose with the defined arguments...
+"${DOCKER_COMPOSE[@]}" "${ARGS[@]}" "$@"

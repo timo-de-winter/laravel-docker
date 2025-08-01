@@ -1,0 +1,9 @@
+#!/bin/bash
+set -e
+
+# Set permissions *after* Laravel starts, and change the ownership
+chown -R appuser:appuser /var/www/html
+chmod -R 777 /var/www/html
+
+# Start Supervisor
+exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
