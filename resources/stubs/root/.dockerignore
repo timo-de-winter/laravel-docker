@@ -1,0 +1,15 @@
+node_modules/
+app-modules/**/vendor/
+
+vendor/
+.git/
+.idea/
+storage/logs/*
+storage/framework/cache/data/*
+storage/framework/sessions/*
+storage/framework/views/*
+.env
+
+public/hot
+
+horizon.log
