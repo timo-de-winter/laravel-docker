@@ -2,7 +2,4 @@
 
 namespace TimoDeWinter\LaravelDocker;
 
-class LaravelDocker
-{
-
-}
+class LaravelDocker {}
