@@ -168,6 +168,9 @@ Your Laravel application will be available at http://localhost
 If you chose to enable AI tools during setup, you get access to both Claude Code and Laravel Boost:
 
 ```bash
+# After starting your containers, complete Laravel Boost setup
+./your-project-name artisan boost:install
+
 # Start Claude Code session in container
 ./your-project-name claude
 
@@ -191,7 +194,7 @@ supervisorctl status boost-mcp
 
 # Manual MCP server management (if needed)
 ./your-project-name artisan boost:mcp  # Start manually
-./your-project-name artisan boost:install  # Reinstall Boost
+./your-project-name artisan boost:install  # Complete Boost setup
 
 # MCP server provides 15+ Laravel-specific tools for AI agents
 # Including project inspection, documentation access, and code generation

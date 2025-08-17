@@ -189,10 +189,8 @@ fi
             return;
         }
 
-        // Run Laravel Boost installation
-        $installCommand->callSilently('boost:install');
-
         $installCommand->info('AI tools installed successfully!');
+        $installCommand->info('After starting your containers, run: ./your-project-name artisan boost:install');
     }
 
     private function updateBinaryForDatabase(string $binaryPath, string $database): void
