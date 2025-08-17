@@ -24,8 +24,8 @@ class LaravelDockerServiceProvider extends PackageServiceProvider
                             'mariadb'
                         );
 
-                        $installClaude = $installCommand->confirm(
-                            'Do you want to install Claude Code in your container?',
+                        $enableAiTools = $installCommand->confirm(
+                            'Do you want to enable AI tools (Claude Code + Laravel Boost MCP server)?',
                             false
                         );
 
@@ -45,8 +45,8 @@ class LaravelDockerServiceProvider extends PackageServiceProvider
                             $composeBuilder->toYaml()
                         );
 
-                        // First we rename the reference in the Dockerfile and conditionally add Claude Code
-                        $this->updateDockerfile(base_path('.docker/dev/Dockerfile'), $sluggedName, $installClaude);
+                        // First we rename the reference in the Dockerfile and conditionally add AI tools
+                        $this->updateDockerfile(base_path('.docker/dev/Dockerfile'), $sluggedName, $enableAiTools);
 
                         // Now we rename all references in the binary file
                         $this->replaceInFile(file: base_path('binary'), replacements: [
@@ -57,8 +57,9 @@ class LaravelDockerServiceProvider extends PackageServiceProvider
                         // Update binary file for the selected database
                         $this->updateBinaryForDatabase(base_path('binary'), $database);
 
-                        // Add Claude Code command to binary if requested
-                        if ($installClaude) {
+                        // Install AI tools if requested
+                        if ($enableAiTools) {
+                            $this->installAiTools($installCommand);
                             $this->addClaudeCommandToBinary(base_path('binary'));
                         }
 
@@ -93,20 +94,27 @@ class LaravelDockerServiceProvider extends PackageServiceProvider
         );
     }
 
-    private function updateDockerfile(string $dockerfilePath, string $sluggedName, bool $installClaude): void
+    private function updateDockerfile(string $dockerfilePath, string $sluggedName, bool $enableAiTools): void
     {
         $contents = file_get_contents($dockerfilePath);
 
         // Replace the project name
         $contents = str_replace('timodewinter-laravel-docker', $sluggedName, $contents);
 
-        // Add Claude Code installation if requested
-        if ($installClaude) {
+        // Add AI tools installation if requested
+        if ($enableAiTools) {
             // Add Claude Code installation after npm install
             $npmInstallLine = 'npm install -g npm';
-            $claudeInstallation = $npmInstallLine . ' && \\' . "\n" . '    npm install -g @anthropic/claude-code';
+            $aiToolsInstallation = $npmInstallLine . ' && \\' . "\n" . '    npm install -g @anthropic/claude-code';
             
-            $contents = str_replace($npmInstallLine, $claudeInstallation, $contents);
+            $contents = str_replace($npmInstallLine, $aiToolsInstallation, $contents);
+            
+            // Enable Laravel Boost MCP server autostart
+            $contents = str_replace(
+                'ENV SUPERVISOR_BOOST_MCP_AUTOSTART="false"',
+                'ENV SUPERVISOR_BOOST_MCP_AUTOSTART="true"',
+                $contents
+            );
         }
 
         file_put_contents($dockerfilePath, $contents);
@@ -165,6 +173,26 @@ fi
         ]);
 
         $installCommand->info('Laravel Horizon installed successfully!');
+    }
+
+    private function installAiTools(InstallCommand $installCommand): void
+    {
+        $installCommand->info('Installing AI tools (Laravel Boost)...');
+        
+        // Install Laravel Boost via Composer
+        $process = new Process(['composer', 'require', 'laravel/boost', '--dev']);
+        $process->setWorkingDirectory(base_path());
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            $installCommand->error('Failed to install Laravel Boost: ' . $process->getErrorOutput());
+            return;
+        }
+
+        // Run Laravel Boost installation
+        $installCommand->callSilently('boost:install');
+
+        $installCommand->info('AI tools installed successfully!');
     }
 
     private function updateBinaryForDatabase(string $binaryPath, string $database): void

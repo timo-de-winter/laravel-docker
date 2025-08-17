@@ -15,7 +15,7 @@ A comprehensive Laravel package that provides a complete Docker-based developmen
 - 🔧 **Laravel Sail Compatibility** - Familiar commands and workflow
 - 📦 **Rich Service Stack** - Database, cache, email testing, search, and storage
 - 🛠 **Development Tools** - Xdebug, Laravel Horizon queue processing, and more
-- 🤖 **Claude Code Integration** - Optional AI-powered coding assistant in container
+- 🤖 **AI Tools Integration** - Optional Claude Code + Laravel Boost MCP server
 - 🎯 **Optimized for Performance** - PHP 8.4, Node 22, optimized configurations
 
 ## Services Included
@@ -52,7 +52,7 @@ php artisan docker:install
 This interactive command will:
 - Ask for your project name
 - Ask which database service you want to use (MariaDB, MySQL, or PostgreSQL)
-- Ask if you want to install Claude Code in your container
+- Ask if you want to enable AI tools (Claude Code + Laravel Boost MCP server)
 - Automatically install and configure Laravel Horizon for queue processing
 - Publish Docker configuration files
 - Create a custom binary script for your project
@@ -163,9 +163,9 @@ Your Laravel application will be available at http://localhost
 ./your-project-name open
 ```
 
-### Claude Code Integration
+### AI Tools Integration
 
-If you chose to install Claude Code during setup, you can start coding sessions directly in your container:
+If you chose to enable AI tools during setup, you get access to both Claude Code and Laravel Boost:
 
 ```bash
 # Start Claude Code session in container
@@ -173,6 +173,28 @@ If you chose to install Claude Code during setup, you can start coding sessions 
 
 # This runs Claude Code with access to your Laravel project files
 # and all installed dependencies within the container environment
+
+# Laravel Boost MCP server runs automatically in the background
+# providing AI agents with Laravel-specific tools and documentation
+# The MCP server is accessible at the standard Laravel Boost endpoint
+```
+
+#### Laravel Boost MCP Server
+
+Laravel Boost provides a Model Context Protocol (MCP) server with specialized Laravel tools:
+
+```bash
+# The MCP server runs automatically when AI tools are enabled
+# Check supervisor status
+./your-project-name shell
+supervisorctl status boost-mcp
+
+# Manual MCP server management (if needed)
+./your-project-name artisan boost:mcp  # Start manually
+./your-project-name artisan boost:install  # Reinstall Boost
+
+# MCP server provides 15+ Laravel-specific tools for AI agents
+# Including project inspection, documentation access, and code generation
 ```
 
 ### Queue Management with Horizon

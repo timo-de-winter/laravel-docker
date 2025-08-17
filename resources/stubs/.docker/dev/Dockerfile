@@ -13,6 +13,8 @@ ENV TZ=UTC
 # This is used to run the application
 ENV SUPERVISOR_PHP_COMMAND="/usr/bin/php -d variables_order=EGPCS /var/www/html/artisan serve --host=0.0.0.0 --port=80"
 ENV SUPERVISOR_PHP_QUEUE_COMMAND="/usr/bin/php -d variables_order=EGPCS /var/www/html/artisan horizon"
+ENV SUPERVISOR_BOOST_MCP_COMMAND="/usr/bin/php -d variables_order=EGPCS /var/www/html/artisan boost:mcp"
+ENV SUPERVISOR_BOOST_MCP_AUTOSTART="false"
 ENV SUPERVISOR_PHP_USER="appuser"
 
 # Setup server timezone
