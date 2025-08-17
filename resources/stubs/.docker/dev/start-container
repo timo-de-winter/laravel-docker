@@ -5,5 +5,22 @@ set -e
 chown -R appuser:appuser /var/www/html
 chmod -R 777 /var/www/html
 
+# Wait for Redis to be available before starting Horizon
+echo "Waiting for Redis to be available..."
+until nc -z redis 6379; do
+    echo "Redis not ready yet, waiting..."
+    sleep 2
+done
+echo "Redis is available!"
+
+# Check if Horizon is installed and enable it if available
+if [ -f "/var/www/html/vendor/laravel/horizon/src/HorizonServiceProvider.php" ]; then
+    export SUPERVISOR_HORIZON_AUTOSTART="true"
+    echo "Laravel Horizon detected - enabling automatic startup"
+else
+    export SUPERVISOR_HORIZON_AUTOSTART="false"
+    echo "Laravel Horizon not found - disabling automatic startup"
+fi
+
 # Start Supervisor
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
