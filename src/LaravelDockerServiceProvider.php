@@ -5,6 +5,7 @@ namespace TimoDeWinter\LaravelDocker;
 use Spatie\LaravelPackageTools\Commands\InstallCommand;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
+use Symfony\Component\Process\Process;
 use TimoDeWinter\LaravelDocker\Services\ComposeBuilder;
 
 class LaravelDockerServiceProvider extends PackageServiceProvider
@@ -23,6 +24,11 @@ class LaravelDockerServiceProvider extends PackageServiceProvider
                             'mariadb'
                         );
 
+                        $installClaude = $installCommand->confirm(
+                            'Do you want to install Claude Code in your container?',
+                            false
+                        );
+
                         $sluggedName = str($name)->slug()->value();
                         $envName = str($name)->slug('_')->upper()->value();
 
@@ -39,10 +45,8 @@ class LaravelDockerServiceProvider extends PackageServiceProvider
                             $composeBuilder->toYaml()
                         );
 
-                        // First we rename the reference in the Dockerfile
-                        $this->replaceInFile(file: base_path('.docker/dev/Dockerfile'), replacements: [
-                            'timodewinter-laravel-docker' => $sluggedName,
-                        ]);
+                        // First we rename the reference in the Dockerfile and conditionally add Claude Code
+                        $this->updateDockerfile(base_path('.docker/dev/Dockerfile'), $sluggedName, $installClaude);
 
                         // Now we rename all references in the binary file
                         $this->replaceInFile(file: base_path('binary'), replacements: [
@@ -52,6 +56,14 @@ class LaravelDockerServiceProvider extends PackageServiceProvider
 
                         // Update binary file for the selected database
                         $this->updateBinaryForDatabase(base_path('binary'), $database);
+
+                        // Add Claude Code command to binary if requested
+                        if ($installClaude) {
+                            $this->addClaudeCommandToBinary(base_path('binary'));
+                        }
+
+                        // Install Laravel Horizon for queue processing
+                        $this->installHorizon($installCommand);
 
                         // Last we rename the binary file to the sluggedname
                         rename(base_path('binary'), $sluggedName);
@@ -79,6 +91,80 @@ class LaravelDockerServiceProvider extends PackageServiceProvider
                 $contents
             )
         );
+    }
+
+    private function updateDockerfile(string $dockerfilePath, string $sluggedName, bool $installClaude): void
+    {
+        $contents = file_get_contents($dockerfilePath);
+
+        // Replace the project name
+        $contents = str_replace('timodewinter-laravel-docker', $sluggedName, $contents);
+
+        // Add Claude Code installation if requested
+        if ($installClaude) {
+            // Add Claude Code installation after npm install
+            $npmInstallLine = 'npm install -g npm';
+            $claudeInstallation = $npmInstallLine . ' && \\' . "\n" . '    npm install -g @anthropic/claude-code';
+            
+            $contents = str_replace($npmInstallLine, $claudeInstallation, $contents);
+        }
+
+        file_put_contents($dockerfilePath, $contents);
+    }
+
+    private function addClaudeCommandToBinary(string $binaryPath): void
+    {
+        $contents = file_get_contents($binaryPath);
+
+        // Claude Code command to insert before the final Docker Compose execution
+        $claudeCommand = '
+# Start Claude Code session within the application container...
+elif [ "$1" == "claude" ]; then
+    shift 1
+
+    if [ "$EXEC" == "yes" ]; then
+        ARGS+=(exec -u "$WWWUSER")
+        [ ! -t 0 ] && ARGS+=(-T)
+        ARGS+=("$APP_SERVICE" claude)
+    else
+        timodewinter-laravel-docker_is_not_running
+    fi';
+
+        // Insert before the final fi statement
+        $insertPoint = 'fi
+
+# Run Docker Compose with the defined arguments...';
+        
+        $replacement = $claudeCommand . '
+fi
+
+# Run Docker Compose with the defined arguments...';
+
+        $contents = str_replace($insertPoint, $replacement, $contents);
+
+        file_put_contents($binaryPath, $contents);
+    }
+
+    private function installHorizon(InstallCommand $installCommand): void
+    {
+        $installCommand->info('Installing Laravel Horizon...');
+        
+        // Install Horizon via Composer
+        $process = new Process(['composer', 'require', 'laravel/horizon']);
+        $process->setWorkingDirectory(base_path());
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            $installCommand->error('Failed to install Laravel Horizon: ' . $process->getErrorOutput());
+            return;
+        }
+
+        // Publish Horizon assets
+        $installCommand->callSilently('vendor:publish', [
+            '--provider' => 'Laravel\Horizon\HorizonServiceProvider',
+        ]);
+
+        $installCommand->info('Laravel Horizon installed successfully!');
     }
 
     private function updateBinaryForDatabase(string $binaryPath, string $database): void

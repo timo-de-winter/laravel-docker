@@ -14,7 +14,8 @@ A comprehensive Laravel package that provides a complete Docker-based developmen
 - 🚀 **One-Command Setup** - Get started with a single installation command  
 - 🔧 **Laravel Sail Compatibility** - Familiar commands and workflow
 - 📦 **Rich Service Stack** - Database, cache, email testing, search, and storage
-- 🛠 **Development Tools** - Xdebug, queue processing, and more
+- 🛠 **Development Tools** - Xdebug, Laravel Horizon queue processing, and more
+- 🤖 **Claude Code Integration** - Optional AI-powered coding assistant in container
 - 🎯 **Optimized for Performance** - PHP 8.4, Node 22, optimized configurations
 
 ## Services Included
@@ -50,6 +51,9 @@ php artisan docker:install
 
 This interactive command will:
 - Ask for your project name
+- Ask which database service you want to use (MariaDB, MySQL, or PostgreSQL)
+- Ask if you want to install Claude Code in your container
+- Automatically install and configure Laravel Horizon for queue processing
 - Publish Docker configuration files
 - Create a custom binary script for your project
 - Set up all necessary Docker services
@@ -100,8 +104,8 @@ Your Laravel application will be available at http://localhost
 ./your-project-name pest
 ./your-project-name phpunit
 
-# Queue processing (via Horizon)
-# Queues are automatically processed in the background
+# Queue processing (via Horizon) 
+# Queues are automatically processed in the background via supervisor
 ```
 
 ### Package Management
@@ -157,6 +161,35 @@ Your Laravel application will be available at http://localhost
 
 # Open application in browser
 ./your-project-name open
+```
+
+### Claude Code Integration
+
+If you chose to install Claude Code during setup, you can start coding sessions directly in your container:
+
+```bash
+# Start Claude Code session in container
+./your-project-name claude
+
+# This runs Claude Code with access to your Laravel project files
+# and all installed dependencies within the container environment
+```
+
+### Queue Management with Horizon
+
+Laravel Horizon is automatically installed and configured during setup:
+
+```bash
+# View Horizon dashboard (access via web browser)
+# Navigate to http://localhost/horizon in your browser
+
+# Queue processing runs automatically in the background via supervisor
+# Check supervisor status in container
+./your-project-name shell
+supervisorctl status
+
+# Restart Horizon if needed
+./your-project-name artisan horizon:terminate
 ```
 
 ### Debugging with Xdebug
