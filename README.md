@@ -171,11 +171,13 @@ If you chose to enable AI tools during setup, you get access to both Claude Code
 # After starting your containers, complete Laravel Boost setup
 ./your-project-name artisan boost:install
 
-# Start Claude Code session in container
+# Start Claude Code session in container (if installation succeeded)
 ./your-project-name claude
 
-# This runs Claude Code with access to your Laravel project files
-# and all installed dependencies within the container environment
+# Note: Claude Code installation may fail during Docker build.
+# If so, you can install it manually in the container:
+./your-project-name shell
+npm install -g @anthropic-ai/claude-code
 
 # Laravel Boost MCP server runs automatically in the background
 # providing AI agents with Laravel-specific tools and documentation
@@ -205,6 +207,10 @@ supervisorctl status boost-mcp
 Laravel Horizon is automatically installed and configured during setup:
 
 ```bash
+# After Horizon installation, restart containers to enable automatic startup
+./your-project-name down
+./your-project-name up -d
+
 # View Horizon dashboard (access via web browser)
 # Navigate to http://localhost/horizon in your browser
 
@@ -253,6 +259,10 @@ The package respects standard Laravel environment variables and adds a few Docke
 # Standard Laravel
 APP_PORT=80
 DB_PORT=3306
+
+# Redis Configuration (automatically configured)
+REDIS_HOST=redis
+REDIS_PORT=6379
 
 # Docker-specific
 XDEBUG_MODE=off                    # Set to 'debug' to enable Xdebug

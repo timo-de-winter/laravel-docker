@@ -350,7 +350,15 @@ class ComposeBuilder
 
     private function formatValue($value): string
     {
-        if (is_string($value) && (strpos($value, ':') !== false || strpos($value, '${') !== false)) {
+        if (is_string($value) && (
+            strpos($value, ':') !== false || 
+            strpos($value, '${') !== false ||
+            $value === '%' ||
+            $value === 'yes' ||
+            $value === 'no' ||
+            $value === 'true' ||
+            $value === 'false'
+        )) {
             return "'".$value."'";
         }
 

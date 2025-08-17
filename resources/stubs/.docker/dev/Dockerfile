@@ -13,6 +13,7 @@ ENV TZ=UTC
 # This is used to run the application
 ENV SUPERVISOR_PHP_COMMAND="/usr/bin/php -d variables_order=EGPCS /var/www/html/artisan serve --host=0.0.0.0 --port=80"
 ENV SUPERVISOR_PHP_QUEUE_COMMAND="/usr/bin/php -d variables_order=EGPCS /var/www/html/artisan horizon"
+ENV SUPERVISOR_HORIZON_AUTOSTART="false"
 ENV SUPERVISOR_BOOST_MCP_COMMAND="/usr/bin/php -d variables_order=EGPCS /var/www/html/artisan boost:mcp"
 ENV SUPERVISOR_BOOST_MCP_AUTOSTART="false"
 ENV SUPERVISOR_PHP_USER="appuser"
@@ -23,7 +24,7 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 # Install and setup everything required to run the application
 RUN apt-get update && apt-get upgrade -y && \
     mkdir -p /etc/apt/keyrings && \
-    apt-get install -y gnupg gosu curl ca-certificates zip unzip git supervisor sqlite3 libcap2-bin libpng-dev python3 dnsutils librsvg2-bin fswatch ffmpeg nano && \
+    apt-get install -y gnupg gosu curl ca-certificates zip unzip git supervisor sqlite3 libcap2-bin libpng-dev python3 dnsutils librsvg2-bin fswatch ffmpeg nano netcat-openbsd && \
     curl -sS 'https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x14aa40ec0831756756d7f66c4f4ea0aae5267a6c' | gpg --dearmor | tee /etc/apt/keyrings/ppa_ondrej_php.gpg > /dev/null && \
     echo "deb [signed-by=/etc/apt/keyrings/ppa_ondrej_php.gpg] https://ppa.launchpadcontent.net/ondrej/php/ubuntu noble main" > /etc/apt/sources.list.d/ppa_ondrej_php.list && \
     apt-get update && \

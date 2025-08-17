@@ -64,7 +64,7 @@ class LaravelDockerServiceProvider extends PackageServiceProvider
                         }
 
                         // Install Laravel Horizon for queue processing
-                        $this->installHorizon($installCommand);
+                        $this->installHorizon($installCommand, $sluggedName);
 
                         // Last we rename the binary file to the sluggedname
                         rename(base_path('binary'), $sluggedName);
@@ -103,9 +103,9 @@ class LaravelDockerServiceProvider extends PackageServiceProvider
 
         // Add AI tools installation if requested
         if ($enableAiTools) {
-            // Add Claude Code installation after npm install
+            // Add Claude Code installation after npm install with error handling
             $npmInstallLine = 'npm install -g npm';
-            $aiToolsInstallation = $npmInstallLine . ' && \\' . "\n" . '    npm install -g @anthropic/claude-code';
+            $aiToolsInstallation = $npmInstallLine . ' && \\' . "\n" . '    (npm install -g @anthropic-ai/claude-code || echo "Claude Code installation failed, continuing...")';
             
             $contents = str_replace($npmInstallLine, $aiToolsInstallation, $contents);
             
@@ -153,7 +153,7 @@ fi
         file_put_contents($binaryPath, $contents);
     }
 
-    private function installHorizon(InstallCommand $installCommand): void
+    private function installHorizon(InstallCommand $installCommand, string $sluggedName): void
     {
         $installCommand->info('Installing Laravel Horizon...');
         
@@ -173,6 +173,7 @@ fi
         ]);
 
         $installCommand->info('Laravel Horizon installed successfully!');
+        $installCommand->info('Note: Horizon will be available after container restart or manual start with: ./' . $sluggedName . ' artisan horizon');
     }
 
     private function installAiTools(InstallCommand $installCommand): void
